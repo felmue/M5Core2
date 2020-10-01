@@ -48,18 +48,48 @@ typedef enum {
 } key_mode_t;
 
 String input_text = "";
+String old_input_text = "";
 key_mode_t key_mode = KEY_MODE_LETTER;
 bool shift_mode = false;
 bool keyboard_done = false;
+uint32_t cursor_last;
+bool cursor_state = false;
 
 ButtonColors bc_on = {BLUE, GREEN, DARKGREY};
 ButtonColors bc_off = {BLACK, GREEN, DARKGREY};
 
+void updateInputText(void);
 void runKeyboard(void);
 void initKeyboard(void);
 void deinitKeyboard(void);
 void drawKeyboard(void);
+void btnAEvent(Event& e);
 void buttonEvent(Event& e);
+
+void updateInputText()
+{
+  int oitw = M5.Lcd.textWidth(old_input_text);
+  int itw = M5.Lcd.textWidth(input_text);
+
+  M5.Lcd.setFreeFont(FF2);
+  if(old_input_text != input_text)
+  {
+    old_input_text = input_text;
+    M5.Lcd.fillRect(0, 0, max(oitw, itw) + 40, KEYBOARD_Y - 1, TFT_BLACK);
+    M5.Lcd.drawString(input_text, 0, 10);
+  }
+  else
+  {
+    if(cursor_state == true)
+    {
+      M5.Lcd.fillRect(itw + 2, 2, 15, KEYBOARD_Y - 6, TFT_YELLOW);
+    }
+    else
+    {
+      M5.Lcd.fillRect(itw + 2, 2, 15, KEYBOARD_Y - 6, TFT_BLACK);
+    }
+  }
+}
 
 void runKeyboard()
 {
@@ -69,6 +99,14 @@ void runKeyboard()
   while(keyboard_done == false)
   {
     M5.Touch.update();
+
+    // Blinking cursor
+    if(millis() > cursor_last)
+    {
+      cursor_last = millis() + 500;
+      cursor_state = !cursor_state;
+      updateInputText();
+    }
   }
   while(M5.BtnB.isPressed())
   {
@@ -101,6 +139,7 @@ void initKeyboard()
   }
 
   M5.Events.addHandler(buttonEvent, E_TOUCH + E_BTNONLY);
+  M5.Events.addHandler(btnAEvent, E_RELEASE + E_BTNONLY);
 
   input_text = "";
   key_mode = KEY_MODE_LETTER;
@@ -110,6 +149,7 @@ void initKeyboard()
 void deinitKeyboard()
 {
   M5.Events.delHandlers(buttonEvent, nullptr, nullptr);
+  M5.Events.delHandlers(btnAEvent, nullptr, nullptr);
 
   for(int r = 0; r < ROWS; r++)
   {
@@ -157,14 +197,32 @@ void drawKeyboard()
   }
 }
 
+void btnAEvent(Event& e)
+{
+  // Delete all (long press) or delete one char (short press)
+  if(e.button == &M5.BtnA)
+  {
+    if(e.duration > 500)
+    {
+      input_text = "";
+    }
+    else
+    {
+      input_text = input_text.substring(0, input_text.length() - 1);
+    }
+    updateInputText();
+  }
+}
+
 void buttonEvent(Event& e)
 {
   Button& b = *e.button;
 
-  // Backspace
+  // Delete
   if(e.button == &M5.BtnA)
   {
-    input_text = input_text.substring(0, input_text.length() - 1);
+    // Ignore - handled in btnAEvent()
+    return;
   }
   // Done
   else if(e.button == &M5.BtnB)
@@ -199,10 +257,7 @@ void buttonEvent(Event& e)
     }
     input_text += b.label;
   }
-  // Clear input text area
-  M5.Lcd.fillRect(0, 0, M5.Lcd.width(), KEYBOARD_Y - 1, TFT_BLACK);
-  M5.Lcd.setFreeFont(FF2);
-  M5.Lcd.drawString(input_text, 0, 10);
+  updateInputText();
 }
 
 void setup()
