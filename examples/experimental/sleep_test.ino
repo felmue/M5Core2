@@ -135,6 +135,8 @@ void setup()
   // ESP32 - lower voltage
   M5.Axp.SetDCVoltage(0, 2700);
 
+  gpio_deep_sleep_hold_en();
+
   M5.Axp.DeepSleep(SLEEP_SEC(50));
   // Never reached
 }
